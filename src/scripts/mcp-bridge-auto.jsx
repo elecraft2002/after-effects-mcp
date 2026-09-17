@@ -141,12 +141,17 @@ function createShapeLayer(args) {
             stroke.property("Stroke Width").setValue(strokeWidth);
             stroke.property("Opacity").setValue(100);
         }
+        if (args.threeDLayer) { shapeLayer.threeDLayer = true; }
         shapeLayer.property("Position").setValue(position);
         shapeLayer.startTime = startTime;
         if (duration > 0) { shapeLayer.outPoint = startTime + duration; }
+        if (args.blendMode) {
+            var bModesShape = {"normal":BlendingMode.NORMAL,"add":BlendingMode.ADD,"multiply":BlendingMode.MULTIPLY,"screen":BlendingMode.SCREEN,"overlay":BlendingMode.OVERLAY,"softLight":BlendingMode.SOFT_LIGHT,"hardLight":BlendingMode.HARD_LIGHT,"darken":BlendingMode.DARKEN,"lighten":BlendingMode.LIGHTEN,"difference":BlendingMode.DIFFERENCE};
+            if (bModesShape[args.blendMode] !== undefined) { shapeLayer.blendingMode = bModesShape[args.blendMode]; }
+        }
         return JSON.stringify({
             status: "success", message: "Shape layer created successfully",
-            layer: { name: shapeLayer.name, index: shapeLayer.index, type: "shape", shapeType: shapeType, inPoint: shapeLayer.inPoint, outPoint: shapeLayer.outPoint, position: shapeLayer.property("Position").value }
+            layer: { name: shapeLayer.name, index: shapeLayer.index, type: "shape", shapeType: shapeType, inPoint: shapeLayer.inPoint, outPoint: shapeLayer.outPoint, position: shapeLayer.property("Position").value, threeDLayer: shapeLayer.threeDLayer }
         });
     } catch (error) {
         return JSON.stringify({ status: "error", message: error.toString() });
@@ -450,12 +455,17 @@ function createSolidLayer(args) {
         } else {
             solidLayer = comp.layers.addSolid(color, name, size[0], size[1], 1);
         }
+        if (args.threeDLayer) { solidLayer.threeDLayer = true; }
         solidLayer.property("Position").setValue(position);
         solidLayer.startTime = startTime;
         if (duration > 0) { solidLayer.outPoint = startTime + duration; }
+        if (args.blendMode) {
+            var bModesSolid = {"normal":BlendingMode.NORMAL,"add":BlendingMode.ADD,"multiply":BlendingMode.MULTIPLY,"screen":BlendingMode.SCREEN,"overlay":BlendingMode.OVERLAY,"softLight":BlendingMode.SOFT_LIGHT,"hardLight":BlendingMode.HARD_LIGHT,"darken":BlendingMode.DARKEN,"lighten":BlendingMode.LIGHTEN,"difference":BlendingMode.DIFFERENCE};
+            if (bModesSolid[args.blendMode] !== undefined) { solidLayer.blendingMode = bModesSolid[args.blendMode]; }
+        }
         return JSON.stringify({
             status: "success", message: isAdjustment ? "Adjustment layer created successfully" : "Solid layer created successfully",
-            layer: { name: solidLayer.name, index: solidLayer.index, type: isAdjustment ? "adjustment" : "solid", inPoint: solidLayer.inPoint, outPoint: solidLayer.outPoint, position: solidLayer.property("Position").value, isAdjustment: solidLayer.adjustmentLayer }
+            layer: { name: solidLayer.name, index: solidLayer.index, type: isAdjustment ? "adjustment" : "solid", inPoint: solidLayer.inPoint, outPoint: solidLayer.outPoint, position: solidLayer.property("Position").value, isAdjustment: solidLayer.adjustmentLayer, threeDLayer: solidLayer.threeDLayer }
         });
     } catch (error) {
         return JSON.stringify({ status: "error", message: error.toString() });
@@ -617,6 +627,15 @@ function setLayerProperties(args) {
         // --- General Property Handling ---
         var threeDLayer = args.threeDLayer;
         if (threeDLayer !== undefined && threeDLayer !== null) { layer.threeDLayer = !!threeDLayer; changedProperties.push("threeDLayer"); }
+        if (args.autoOrient !== undefined && args.autoOrient !== null) {
+            var orientMap = {
+                "none": AutoOrientType.NO_AUTO_ORIENT,
+                "camera": AutoOrientType.CAMERA_OR_POINT_OF_INTEREST,
+                "path": AutoOrientType.ALONG_PATH,
+                "characters": AutoOrientType.CHARACTERS_TOWARD_CAMERA
+            };
+            if (orientMap[args.autoOrient] !== undefined) { layer.autoOrient = orientMap[args.autoOrient]; changedProperties.push("autoOrient"); }
+        }
         if (position !== undefined && position !== null) {
             var posProp = layer.property("Position");
             if (posProp.numKeys > 0) { while (posProp.numKeys > 0) { posProp.removeKey(1); } }
@@ -787,6 +806,18 @@ function setLayerKeyframe(compIndex, layerIndex, propertyName, timeInSeconds, va
              } else if (layer.property("Text") && layer.property("Text").property(propertyName)) {
                  property = layer.property("Text").property(propertyName);
             } // Add more groups if needed (e.g., Masks, Shapes)
+
+            // Search inside individual effects for sub-properties (e.g. "Width" on the Grid effect).
+            if (!property && layer.property("Effects")) {
+                var effectsForKf = layer.property("Effects");
+                for (var efi = 1; efi <= effectsForKf.numProperties; efi++) {
+                    var effKf = effectsForKf.property(efi);
+                    try {
+                        var subPropKf = effKf.property(propertyName);
+                        if (subPropKf) { property = subPropKf; break; }
+                    } catch (eKf2) {}
+                }
+            }
 
             if (!property) {
                  return JSON.stringify({ success: false, message: "Property '" + propertyName + "' not found on layer '" + layer.name + "'." });
@@ -1379,9 +1410,14 @@ function setCompositionProperties(args) {
         if (args.width !== undefined && args.width !== null && args.height !== undefined && args.height !== null) {
             comp.width = args.width; comp.height = args.height; changed.push("dimensions");
         }
+        if (args.backgroundColor !== undefined && args.backgroundColor !== null) {
+            var bg = args.backgroundColor;
+            comp.bgColor = [bg.r / 255, bg.g / 255, bg.b / 255];
+            changed.push("backgroundColor");
+        }
         return JSON.stringify({
             status: "success",
-            composition: { name: comp.name, duration: comp.duration, frameRate: comp.frameRate, width: comp.width, height: comp.height },
+            composition: { name: comp.name, duration: comp.duration, frameRate: comp.frameRate, width: comp.width, height: comp.height, bgColor: comp.bgColor },
             changedProperties: changed
         });
     } catch (error) {
@@ -1723,6 +1759,8 @@ function dispatchCommand(command, args) {
             return removeEffect(args);
         case "listLayerEffects":
             return listLayerEffects(args);
+        case "addFootageLayer":
+            return addFootageLayer(args);
         default:
             return { status: "error", message: "Unknown command: " + command };
     }
@@ -1731,6 +1769,42 @@ function dispatchCommand(command, args) {
         return JSON.parse(raw);
     } catch (parseError) {
         return { status: "error", message: "Failed to parse result for '" + command + "': " + parseError.toString(), raw: String(raw) };
+    }
+}
+
+// --- addFootageLayer: add an already-imported project item (footage/comp/solid) as a new
+// layer in a target composition - needed to reuse e.g. an imported logo across compositions. ---
+function addFootageLayer(args) {
+    try {
+        var comp = findCompByName(args.compName);
+        var item = null;
+        var i;
+        if (args.itemName) {
+            for (i = 1; i <= app.project.numItems; i++) {
+                var it = app.project.item(i);
+                if (it.name === args.itemName && !(it instanceof FolderItem)) { item = it; break; }
+            }
+        } else if (args.itemId !== undefined && args.itemId !== null) {
+            for (i = 1; i <= app.project.numItems; i++) {
+                var it2 = app.project.item(i);
+                if (it2.id === args.itemId) { item = it2; break; }
+            }
+        }
+        if (!item) {
+            throw new Error("Project item not found: " + (args.itemName || args.itemId));
+        }
+        var newLayer = comp.layers.add(item);
+        if (args.name) { newLayer.name = args.name; }
+        if (args.position !== undefined && args.position !== null) { newLayer.property("Position").setValue(args.position); }
+        if (args.threeDLayer !== undefined && args.threeDLayer !== null) { newLayer.threeDLayer = !!args.threeDLayer; }
+        if (args.startTime !== undefined && args.startTime !== null) { newLayer.startTime = args.startTime; }
+        return {
+            status: "success",
+            message: "Layer added from project item '" + item.name + "'",
+            layer: { name: newLayer.name, index: newLayer.index, position: newLayer.property("Position").value }
+        };
+    } catch (error) {
+        return { status: "error", message: error.toString() + (error.line ? " (line " + error.line + ")" : "") };
     }
 }
 
