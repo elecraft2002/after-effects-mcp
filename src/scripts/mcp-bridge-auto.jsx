@@ -12,7 +12,19 @@
 
 // --- Function Definitions ---
 
-// --- createComposition (from createComposition.jsx) --- 
+// ExtendScript's Date has no toISOString (that's an ES5 addition the AE JS engine lacks).
+function toISOStringSafe(d) {
+    function pad(n, width) {
+        n = String(n);
+        while (n.length < width) n = "0" + n;
+        return n;
+    }
+    return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1, 2) + "-" + pad(d.getUTCDate(), 2) +
+        "T" + pad(d.getUTCHours(), 2) + ":" + pad(d.getUTCMinutes(), 2) + ":" + pad(d.getUTCSeconds(), 2) +
+        "." + pad(d.getUTCMilliseconds(), 3) + "Z";
+}
+
+// --- createComposition (from createComposition.jsx) ---
 function createComposition(args) {
     try {
         var name = args.name || "New Composition";
@@ -861,6 +873,17 @@ function setLayerExpression(compIndex, layerIndex, propertyName, expressionStrin
         property.expression = expressionString;
 
         var action = expressionString === "" ? "removed" : "set";
+        var expressionError = "";
+        try { expressionError = property.expressionError || ""; } catch (eCheck) { expressionError = ""; }
+
+        if (expressionError) {
+            return JSON.stringify({
+                success: false,
+                message: "Expression set for '" + propertyName + "' on layer '" + layer.name + "' but After Effects reports an expression error: " + expressionError,
+                expressionError: expressionError
+            });
+        }
+
         return JSON.stringify({ success: true, message: "Expression " + action + " for '" + propertyName + "' on layer '" + layer.name + "'." });
     } catch (e) {
         return JSON.stringify({ success: false, message: "Error setting expression: " + e.toString() + " (Line: " + e.line + ")" });
@@ -1068,7 +1091,7 @@ function applyEffectTemplate(args) {
             
             // Stylistic effects
             "glow": {
-                effectMatchName: "ADBE Glow",
+                effectMatchName: "ADBE Glo2",
                 settings: {
                     "Glow Threshold": customSettings.threshold || 50,
                     "Glow Radius": customSettings.radius || 15,
@@ -1114,7 +1137,7 @@ function applyEffectTemplate(args) {
                         }
                     },
                     {
-                        effectMatchName: "ADBE Glow",
+                        effectMatchName: "ADBE Glo2",
                         settings: {
                             "Glow Threshold": 50,
                             "Glow Radius": 10,
@@ -1548,6 +1571,36 @@ function getLayerType(layer) {
 
 // Rich snapshot of a composition's current layer stack, used to give the AI
 // as much situational context as possible without an extra round trip.
+// Recursively walk every property on every layer in a comp and collect any active
+// expression errors, so they surface through the bridge instead of only showing as a
+// small warning triangle inside After Effects' own UI.
+function findExpressionErrors(comp) {
+    var errors = [];
+    function walk(propGroup, layerName) {
+        var count;
+        try { count = propGroup.numProperties; } catch (eCount) { return; }
+        for (var i = 1; i <= count; i++) {
+            var prop;
+            try { prop = propGroup.property(i); } catch (eProp) { continue; }
+            if (!prop) continue;
+            try {
+                if (prop.propertyType === PropertyType.PROPERTY) {
+                    if (prop.expressionEnabled && prop.expressionError) {
+                        errors.push({ layer: layerName, property: prop.name, matchName: prop.matchName, error: prop.expressionError });
+                    }
+                } else {
+                    walk(prop, layerName);
+                }
+            } catch (eWalk) { /* Some properties throw just by being introspected; skip them. */ }
+        }
+    }
+    for (var li = 1; li <= comp.numLayers; li++) {
+        var layer = comp.layer(li);
+        try { walk(layer, layer.name); } catch (eLayer) {}
+    }
+    return errors;
+}
+
 function getCompSnapshot(comp) {
     var layers = [];
     for (var i = 1; i <= comp.numLayers; i++) {
@@ -1568,6 +1621,9 @@ function getCompSnapshot(comp) {
         try { info.numEffects = l.property("Effects") ? l.property("Effects").numProperties : 0; } catch (e) { info.numEffects = 0; }
         layers.push(info);
     }
+    var expressionErrors = [];
+    try { expressionErrors = findExpressionErrors(comp); } catch (eExpr) {}
+
     return {
         compName: comp.name,
         width: comp.width,
@@ -1575,7 +1631,8 @@ function getCompSnapshot(comp) {
         duration: comp.duration,
         frameRate: comp.frameRate,
         numLayers: comp.numLayers,
-        layers: layers
+        layers: layers,
+        expressionErrors: expressionErrors
     };
 }
 
@@ -1660,6 +1717,12 @@ function dispatchCommand(command, args) {
             return renderPreviewFrame(args);
         case "analyzeLayerColors":
             return analyzeLayerColors(args);
+        case "dumpKeyframes":
+            return dumpKeyframes(args);
+        case "removeEffect":
+            return removeEffect(args);
+        case "listLayerEffects":
+            return listLayerEffects(args);
         default:
             return { status: "error", message: "Unknown command: " + command };
     }
@@ -1668,6 +1731,150 @@ function dispatchCommand(command, args) {
         return JSON.parse(raw);
     } catch (parseError) {
         return { status: "error", message: "Failed to parse result for '" + command + "': " + parseError.toString(), raw: String(raw) };
+    }
+}
+
+// --- listLayerEffects: introspect the effects already applied to a layer (names, matchNames,
+// current property values/ranges) so callers can discover exact property names/matchNames
+// instead of guessing them (there is no scriptable way to enumerate every installed effect
+// in ExtendScript, but every effect's own properties ARE fully introspectable once applied). ---
+function propertyValueTypeName(t) {
+    var names = {};
+    try { names[PropertyValueType.NO_VALUE] = "NO_VALUE"; } catch (e) {}
+    try { names[PropertyValueType.ThreeD_SPATIAL] = "3D_SPATIAL"; } catch (e) {}
+    try { names[PropertyValueType.ThreeD] = "3D"; } catch (e) {}
+    try { names[PropertyValueType.TwoD_SPATIAL] = "2D_SPATIAL"; } catch (e) {}
+    try { names[PropertyValueType.TwoD] = "2D"; } catch (e) {}
+    try { names[PropertyValueType.OneD] = "1D (number)"; } catch (e) {}
+    try { names[PropertyValueType.COLOR] = "COLOR"; } catch (e) {}
+    try { names[PropertyValueType.CUSTOM_VALUE] = "CUSTOM"; } catch (e) {}
+    try { names[PropertyValueType.MARKER] = "MARKER"; } catch (e) {}
+    try { names[PropertyValueType.LAYER_INDEX] = "LAYER_INDEX"; } catch (e) {}
+    try { names[PropertyValueType.MASK_INDEX] = "MASK_INDEX"; } catch (e) {}
+    try { names[PropertyValueType.SHAPE] = "SHAPE"; } catch (e) {}
+    try { names[PropertyValueType.TEXT_DOCUMENT] = "TEXT_DOCUMENT"; } catch (e) {}
+    return names[t] !== undefined ? names[t] : ("unknown(" + t + ")");
+}
+
+function dumpEffectProperty(prop) {
+    var info = { name: prop.name, matchName: prop.matchName };
+    try {
+        info.propertyType = prop.propertyType === PropertyType.PROPERTY ? "PROPERTY"
+            : (prop.propertyType === PropertyType.INDEXED_GROUP ? "INDEXED_GROUP" : "NAMED_GROUP");
+    } catch (e) {}
+    if (prop.propertyType === PropertyType.PROPERTY) {
+        try { info.valueType = propertyValueTypeName(prop.propertyValueType); } catch (e) {}
+        try { info.value = prop.value; } catch (e) {}
+        try { info.canVaryOverTime = prop.canVaryOverTime; } catch (e) {}
+        try { info.numKeys = prop.numKeys; } catch (e) {}
+        try {
+            info.expressionEnabled = prop.expressionEnabled;
+            if (prop.expressionEnabled) {
+                info.expression = prop.expression;
+                info.expressionError = prop.expressionError || "";
+            }
+        } catch (e) {}
+        try { if (prop.minValue !== undefined) info.minValue = prop.minValue; } catch (e) {}
+        try { if (prop.maxValue !== undefined) info.maxValue = prop.maxValue; } catch (e) {}
+    }
+    return info;
+}
+
+function listLayerEffects(args) {
+    try {
+        var comp = findCompByName(args.compName);
+        var layer = findLayerInComp(comp, args.layerIndex, args.layerName);
+        var effectsGroup = layer.property("Effects");
+        if (!effectsGroup) {
+            return { status: "success", layer: { name: layer.name, index: layer.index }, effects: [] };
+        }
+        var effects = [];
+        for (var i = 1; i <= effectsGroup.numProperties; i++) {
+            var eff = effectsGroup.property(i);
+            var effInfo = { index: i, name: eff.name, matchName: eff.matchName, properties: [] };
+            try { effInfo.enabled = eff.enabled; } catch (e) {}
+            for (var j = 1; j <= eff.numProperties; j++) {
+                var p;
+                try { p = eff.property(j); } catch (eP) { continue; }
+                if (!p) continue;
+                effInfo.properties.push(dumpEffectProperty(p));
+            }
+            effects.push(effInfo);
+        }
+        return { status: "success", layer: { name: layer.name, index: layer.index }, effects: effects };
+    } catch (error) {
+        return { status: "error", message: error.toString() + (error.line ? " (line " + error.line + ")" : "") };
+    }
+}
+
+// --- removeEffect: remove an effect from a layer by its effect index (1-based) or matchName ---
+function removeEffect(args) {
+    try {
+        var comp = findCompByName(args.compName);
+        var layer = findLayerInComp(comp, args.layerIndex, args.layerName);
+        var effects = layer.property("Effects");
+        if (!effects || effects.numProperties === 0) {
+            return { status: "error", message: "Layer '" + layer.name + "' has no effects." };
+        }
+        var removed = [];
+        if (args.effectMatchName) {
+            for (var i = effects.numProperties; i >= 1; i--) {
+                var eff = effects.property(i);
+                if (eff.matchName === args.effectMatchName) { removed.push(eff.name); eff.remove(); }
+            }
+        } else if (args.effectIndex) {
+            var e2 = effects.property(args.effectIndex);
+            removed.push(e2.name);
+            e2.remove();
+        } else {
+            // No selector given: clear all effects on the layer.
+            for (var j = effects.numProperties; j >= 1; j--) {
+                removed.push(effects.property(j).name);
+                effects.property(j).remove();
+            }
+        }
+        return { status: "success", message: "Removed effect(s): " + removed.join(", "), layer: { name: layer.name, index: layer.index } };
+    } catch (error) {
+        return { status: "error", message: error.toString() + (error.line ? " (line " + error.line + ")" : "") };
+    }
+}
+
+// --- dumpKeyframes: diagnostic dump of existing keyframe times/values for a layer's key properties ---
+function dumpKeyframes(args) {
+    try {
+        var comp = findCompByName(args.compName);
+        var propNames = ["Position", "Scale", "Rotation", "Opacity", "Anchor Point"];
+        var layers = [];
+        var layerIndices = args.layerIndices;
+        var i;
+        if (!layerIndices || !layerIndices.length) {
+            layerIndices = [];
+            for (i = 1; i <= comp.numLayers; i++) { layerIndices.push(i); }
+        }
+        for (var li = 0; li < layerIndices.length; li++) {
+            var layer = comp.layer(layerIndices[li]);
+            if (!layer) continue;
+            var layerDump = { index: layer.index, name: layer.name, inPoint: layer.inPoint, outPoint: layer.outPoint, properties: {} };
+            for (var p = 0; p < propNames.length; p++) {
+                var prop = layer.property("Transform").property(propNames[p]);
+                if (!prop) continue;
+                var keys = [];
+                for (var k = 1; k <= prop.numKeys; k++) {
+                    keys.push({ time: prop.keyTime(k), value: prop.keyValue(k) });
+                }
+                layerDump.properties[propNames[p]] = {
+                    numKeys: prop.numKeys,
+                    hasExpression: prop.expressionEnabled === true,
+                    expression: prop.expressionEnabled ? prop.expression : "",
+                    currentValue: prop.value,
+                    keys: keys
+                };
+            }
+            layers.push(layerDump);
+        }
+        return { status: "success", compName: comp.name, compDuration: comp.duration, compTime: comp.time, layers: layers };
+    } catch (error) {
+        return { status: "error", message: error.toString() + (error.line ? " (line " + error.line + ")" : "") };
     }
 }
 
@@ -1818,42 +2025,45 @@ function renderPreviewFrame(args) {
         rqItem.timeSpanDuration = 1 / renderComp.frameRate;
         rqItem.render = true;
 
+        // This AE install's default templates don't include a PNG Sequence template, and
+        // om.getSettings()/setSettings() (the scripting API for forcing the format directly)
+        // throws in this AE version. "TIFF Sequence with Alpha" is a real, reliably-present
+        // still-image template though, so render to TIFF and let the Node side convert to PNG.
         var om = rqItem.outputModule(1);
         var templates = om.templates;
         var chosen = null;
         var t;
         for (t = 0; t < templates.length; t++) {
-            if (/png/i.test(templates[t])) { chosen = templates[t]; break; }
+            if (/tiff/i.test(templates[t])) { chosen = templates[t]; break; }
         }
         if (!chosen) {
-            for (t = 0; t < templates.length; t++) {
-                if (/sequence/i.test(templates[t])) { chosen = templates[t]; break; }
-            }
-        }
-        if (!chosen) {
-            throw new Error("No PNG-capable Output Module template found. In After Effects, open the Render Queue, expand Output Module, set Format to 'PNG Sequence' and save it as a template, then try again. Available templates: " + templates.join(", "));
+            throw new Error("No TIFF-capable Output Module template found. Available templates: " + templates.join(", "));
         }
         om.applyTemplate(chosen);
-        om.file = new File(previewFolder.fsName + "/" + baseName + "_[#####].png");
+        om.file = new File(previewFolder.fsName + "/" + baseName + "_[#####].tif");
 
         rq.showWindow(false);
         rq.render(); // Blocking - returns once this single frame has been written.
 
         var matches = previewFolder.getFiles(baseName + "*");
         if (!matches || !matches.length) {
-            throw new Error("Render completed but no output PNG matching '" + baseName + "*' was found in " + previewFolder.fsName);
+            throw new Error("Render completed but no output file matching '" + baseName + "*' was found in " + previewFolder.fsName);
         }
         matches.sort(function (a, b) { return b.modified - a.modified; });
         var resultFile = matches[0];
 
+        var expressionErrors = [];
+        try { expressionErrors = findExpressionErrors(comp); } catch (eExpr) {}
+
         return {
             status: "success",
-            message: "Preview frame rendered successfully",
+            message: "Preview frame rendered successfully" + (expressionErrors.length ? (" (" + expressionErrors.length + " expression error(s) found - see expressionErrors)") : ""),
             file: resultFile.fsName,
             composition: comp.name,
             timeInSeconds: time,
             width: renderComp.width,
-            height: renderComp.height
+            height: renderComp.height,
+            expressionErrors: expressionErrors
         };
     } catch (error) {
         return { status: "error", message: error.toString() + (error.line ? " (line " + error.line + ")" : "") };
@@ -1990,7 +2200,7 @@ function executeCommand(command, args) {
         logToPanel("Execution finished for: " + command);
 
         // Add tracking fields directly on the result object (already a plain object).
-        resultObj._responseTimestamp = new Date().toISOString();
+        resultObj._responseTimestamp = toISOStringSafe(new Date());
         resultObj._commandExecuted = command;
         var resultString = JSON.stringify(resultObj);
 

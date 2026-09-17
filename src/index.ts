@@ -6,6 +6,7 @@ import * as os from "os";
 import * as path from "path";
 import { z } from "zod";
 import { fileURLToPath } from 'url';
+import { Jimp } from "jimp";
 
 // Create an MCP server
 const server = new McpServer({
@@ -818,31 +819,47 @@ server.tool(
 );
 
 // Render the current state of a composition and return it as an image (visual feedback loop).
+const DEFAULT_PREVIEW_MAX_WIDTH = 960;
+
 server.tool(
   "render-preview",
-  "Render one frame of a composition to PNG and return it as an image, so you can see what the scene actually looks like right now and keep iterating. Uses After Effects' Render Queue under the hood (ExtendScript has no direct screenshot API), so it can take a few seconds. Requires at least one PNG-capable Output Module template in the user's After Effects install (ships by default as 'PNG Sequence').",
+  "Render one frame of a composition to PNG and return it as an image, so you can see what the scene actually looks like right now and keep iterating. Uses After Effects' Render Queue under the hood (ExtendScript has no direct screenshot API), so it can take a few seconds. Downscales to a max width of 960px by default (pass a larger maxWidth, e.g. the comp's own width, for a full-resolution render). Also reports any active expression errors found anywhere in the composition.",
   {
     compName: z.string().optional().describe("Composition name (defaults to the active composition)"),
     timeInSeconds: z.number().min(0).optional().describe("Time within the composition to render (defaults to the comp's current time)"),
-    maxWidth: z.number().int().positive().optional().describe("Downscale the preview to at most this width in pixels to save on image tokens (renders a temporary scaled copy; the real composition is left untouched)")
+    maxWidth: z.number().int().positive().optional().describe(`Downscale the preview to at most this width in pixels to save on image tokens and render time (renders a temporary scaled copy; the real composition is left untouched). Defaults to ${DEFAULT_PREVIEW_MAX_WIDTH}px; pass the comp's full width for a full-resolution render.`)
   },
   async ({ compName, timeInSeconds, maxWidth }) => {
     const result = await queueAndAwait(
       "renderPreviewFrame",
-      { compName, timeInSeconds, maxWidth },
+      { compName, timeInSeconds, maxWidth: maxWidth ?? DEFAULT_PREVIEW_MAX_WIDTH },
       { timeoutMs: 45000, pollMs: 300 }
     );
     if (result.isError) return result;
 
     try {
       const parsed = JSON.parse(result.content[0].text);
-      const imageBuffer = fs.readFileSync(parsed.file);
-      const base64 = imageBuffer.toString("base64");
+      let pngBuffer: Buffer;
+      if (/\.tiff?$/i.test(parsed.file)) {
+        // AE's default templates on this install have no PNG Sequence option, so the ExtendScript
+        // side renders TIFF instead and we convert it here.
+        const image = await Jimp.read(parsed.file);
+        pngBuffer = await image.getBuffer("image/png");
+      } else {
+        pngBuffer = fs.readFileSync(parsed.file);
+      }
+      const base64 = pngBuffer.toString("base64");
+      const expressionErrors: Array<{ layer: string; property: string; matchName?: string; error: string }> = parsed.expressionErrors || [];
+      let text = `Rendered "${parsed.composition}" at t=${parsed.timeInSeconds}s (${parsed.width}x${parsed.height}px).`;
+      if (expressionErrors.length > 0) {
+        text += `\n\nWARNING: ${expressionErrors.length} active expression error(s) in this composition:\n` +
+          expressionErrors.map(e => `- ${e.layer} / ${e.property}: ${e.error}`).join("\n");
+      }
       return {
         content: [
           {
             type: "text",
-            text: `Rendered "${parsed.composition}" at t=${parsed.timeInSeconds}s (${parsed.width}x${parsed.height}px).`
+            text
           },
           {
             type: "image",
