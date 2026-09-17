@@ -104,6 +104,40 @@ async function waitForBridgeResult(expectedCommand?: string, timeoutMs: number =
   return JSON.stringify({ error: `Timed out waiting for bridge result${expectedCommand ? ` for command '${expectedCommand}'` : ''}.` });
 }
 
+// Queue a command and wait for its result in the same tool call, instead of making the
+// caller queue, wait an arbitrary amount of time, then call get-results separately.
+async function queueAndAwait(
+  command: string,
+  args: Record<string, any> = {},
+  opts: { timeoutMs?: number; pollMs?: number } = {}
+): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
+  const timeoutMs = opts.timeoutMs ?? 15000;
+  const pollMs = opts.pollMs ?? 200;
+  try {
+    clearResultsFile();
+    writeCommandFile(command, args);
+    const raw = await waitForBridgeResult(command, timeoutMs, pollMs);
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return { content: [{ type: "text", text: raw }] };
+    }
+
+    const isError = !!(parsed && (parsed.status === "error" || parsed.success === false || parsed.error));
+    return {
+      content: [{ type: "text", text: JSON.stringify(parsed) }],
+      isError
+    };
+  } catch (error) {
+    return {
+      content: [{ type: "text", text: `Error executing command "${command}": ${String(error)}` }],
+      isError: true
+    };
+  }
+}
+
 // Helper function to write command to file
 function writeCommandFile(command: string, args: Record<string, any> = {}): void {
   try {
@@ -190,9 +224,14 @@ server.tool(
       "setCompositionProperties",
       "duplicateLayer",
       "deleteLayer",
-      "setLayerMask"
+      "setLayerMask",
+      "batchExecute",
+      "reorderLayer",
+      "setLayerParent",
+      "renderPreviewFrame",
+      "analyzeLayerColors"
     ];
-    
+
     if (!allowedScripts.includes(script)) {
       return {
         content: [
@@ -205,34 +244,8 @@ server.tool(
       };
     }
 
-    try {
-      // Clear any stale result data
-      clearResultsFile();
-      
-      // Write command to file for After Effects to pick up
-      writeCommandFile(script, parameters);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Command to run "${script}" has been queued.\n` +
-                  `Please ensure the "MCP Bridge Auto" panel is open in After Effects.\n` +
-                  `Use the "get-results" tool after a few seconds to check for results.`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error queuing command: ${String(error)}`
-          }
-        ],
-        isError: true
-      };
-    }
+    const timeoutMs = script === "renderPreviewFrame" ? 45000 : script === "batchExecute" ? 30000 : 15000;
+    return await queueAndAwait(script, parameters, { timeoutMs });
   }
 );
 
@@ -403,31 +416,7 @@ server.tool(
     }).optional().describe("Background color of the composition (RGB values 0-255)")
   },
   async (params) => {
-    try {
-      // Write command to file for After Effects to pick up
-      writeCommandFile("createComposition", params);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Command to create composition "${params.name}" has been queued.\n` +
-                  `Please ensure the "MCP Bridge Auto" panel is open in After Effects.\n` +
-                  `Use the "get-results" tool after a few seconds to check for results.`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error queuing composition creation: ${String(error)}`
-          }
-        ],
-        isError: true
-      };
-    }
+    return await queueAndAwait("createComposition", params);
   }
 );
 
@@ -454,30 +443,7 @@ server.tool(
     value: KeyframeValueSchema
   },
   async (parameters) => {
-    try {
-      // Queue the command for After Effects
-      writeCommandFile("setLayerKeyframe", parameters);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Command to set keyframe for "${parameters.propertyName}" on layer ${parameters.layerIndex} in comp ${parameters.compIndex} has been queued.\n` +
-                  `Use the "get-results" tool after a few seconds to check for confirmation.`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error queuing setLayerKeyframe command: ${String(error)}`
-          }
-        ],
-        isError: true
-      };
-    }
+    return await queueAndAwait("setLayerKeyframe", parameters);
   }
 );
 
@@ -491,30 +457,7 @@ server.tool(
     expressionString: z.string().describe("The JavaScript expression string. Provide an empty string (\"\") to remove the expression.")
   },
   async (parameters) => {
-    try {
-      // Queue the command for After Effects
-      writeCommandFile("setLayerExpression", parameters);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Command to set expression for "${parameters.propertyName}" on layer ${parameters.layerIndex} in comp ${parameters.compIndex} has been queued.\n` +
-                  `Use the "get-results" tool after a few seconds to check for confirmation.`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error queuing setLayerExpression command: ${String(error)}`
-          }
-        ],
-        isError: true
-      };
-    }
+    return await queueAndAwait("setLayerExpression", parameters);
   }
 );
 
@@ -650,30 +593,7 @@ server.tool(
     effectSettings: z.record(z.string(), z.unknown()).optional().describe("Optional parameters for the effect (e.g., { 'Blurriness': 25 }).")
   },
   async (parameters) => {
-    try {
-      // Queue the command for After Effects
-      writeCommandFile("applyEffect", parameters);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Command to apply effect to layer ${parameters.layerIndex} in composition ${parameters.compIndex} has been queued.\n` +
-                  `Use the "get-results" tool after a few seconds to check for confirmation.`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error queuing apply-effect command: ${String(error)}`
-          }
-        ],
-        isError: true
-      };
-    }
+    return await queueAndAwait("applyEffect", parameters);
   }
 );
 
@@ -698,30 +618,7 @@ server.tool(
     customSettings: z.record(z.string(), z.unknown()).optional().describe("Optional custom settings to override defaults.")
   },
   async (parameters) => {
-    try {
-      // Queue the command for After Effects
-      writeCommandFile("applyEffectTemplate", parameters);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Command to apply effect template '${parameters.templateName}' to layer ${parameters.layerIndex} in composition ${parameters.compIndex} has been queued.\n` +
-                  `Use the "get-results" tool after a few seconds to check for confirmation.`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error queuing apply-effect-template command: ${String(error)}`
-          }
-        ],
-        isError: true
-      };
-    }
+    return await queueAndAwait("applyEffectTemplate", parameters);
   }
 );
 
@@ -739,35 +636,7 @@ server.tool(
     effectSettings: z.record(z.string(), z.unknown()).optional().describe("Optional parameters for the effect (e.g., { 'Blurriness': 25 }).")
   },
   async (parameters) => {
-    try {
-      // Queue the command for After Effects
-      writeCommandFile("applyEffect", parameters);
-      
-      // Wait a bit for After Effects to process the command
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Get the results
-      const result = readResultsFromTempFile();
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: result
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error applying effect: ${String(error)}`
-          }
-        ],
-        isError: true
-      };
-    }
+    return await queueAndAwait("applyEffect", parameters);
   }
 );
 
@@ -792,35 +661,7 @@ server.tool(
     customSettings: z.record(z.string(), z.unknown()).optional().describe("Optional custom settings to override defaults.")
   },
   async (parameters) => {
-    try {
-      // Queue the command for After Effects
-      writeCommandFile("applyEffectTemplate", parameters);
-      
-      // Wait a bit for After Effects to process the command
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Get the results
-      const result = readResultsFromTempFile();
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: result
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error applying effect template: ${String(error)}`
-          }
-        ],
-        isError: true
-      };
-    }
+    return await queueAndAwait("applyEffectTemplate", parameters);
   }
 );
 
@@ -915,20 +756,98 @@ server.tool(
   "Run the bridge test effects script to verify communication and apply test effects",
   {},
   async () => {
+    return await queueAndAwait("bridgeTestEffects", {});
+  }
+);
+
+// --- BEGIN BATCH & CONTEXT TOOLS ---
+
+// Batch execution: run several operations in a single round trip instead of one at a time.
+server.tool(
+  "batch-execute",
+  "Run multiple After Effects operations (create/modify/reorder layers, effects, composition changes, etc.) in a single round trip instead of one at a time. Pass an array of operations, each naming any command also accepted by run-script (e.g. createTextLayer, createShapeLayer, createSolidLayer, setLayerProperties, reorderLayer, setLayerParent). All operations run inside a single Undo step. Use this whenever asked to add or change several layers at once (e.g. 'add five layers').",
+  {
+    operations: z.array(z.object({
+      command: z.string().describe("Command name, e.g. 'createTextLayer', 'setLayerProperties', 'reorderLayer'"),
+      args: z.record(z.string(), z.unknown()).optional().describe("Arguments for this operation")
+    })).min(1).describe("Ordered list of operations to run in one batch"),
+    stopOnError: z.boolean().optional().describe("Stop at the first failing operation instead of continuing with the rest (default false)"),
+    includeSnapshot: z.boolean().optional().describe("Include a fresh layer-by-layer snapshot of the affected composition in the result (default true)"),
+    compName: z.string().optional().describe("Composition to snapshot afterwards if it can't be inferred from the operations (defaults to the active composition)")
+  },
+  async ({ operations, stopOnError, includeSnapshot, compName }) => {
+    return await queueAndAwait(
+      "batchExecute",
+      { operations, stopOnError, includeSnapshot, compName },
+      { timeoutMs: 30000 }
+    );
+  }
+);
+
+// Reorder a layer's position in the stacking order.
+server.tool(
+  "reorder-layer",
+  "Change a layer's stacking order within its composition: bring it to the front/back, or move it directly before/after another layer.",
+  {
+    compName: z.string().optional().describe("Composition name (defaults to the active composition)"),
+    layerIndex: z.number().int().positive().optional().describe("1-based index of the layer to move"),
+    layerName: z.string().optional().describe("Name of the layer to move (alternative to layerIndex)"),
+    position: z.enum(["beginning", "end", "before", "after"]).describe("'beginning' = topmost, 'end' = bottommost, or 'before'/'after' a reference layer"),
+    referenceLayerIndex: z.number().int().positive().optional().describe("1-based index of the reference layer (required for 'before'/'after')"),
+    referenceLayerName: z.string().optional().describe("Name of the reference layer (alternative to referenceLayerIndex)")
+  },
+  async (params) => {
+    return await queueAndAwait("reorderLayer", params);
+  }
+);
+
+// Set or clear a layer's parent (parent-child rigging).
+server.tool(
+  "set-layer-parent",
+  "Set or clear a layer's parent layer for parent-child rigging. Omit both parentLayerIndex and parentLayerName to clear the parent.",
+  {
+    compName: z.string().optional().describe("Composition name (defaults to the active composition)"),
+    layerIndex: z.number().int().positive().optional().describe("1-based index of the layer to (un)parent"),
+    layerName: z.string().optional().describe("Name of the layer to (un)parent"),
+    parentLayerIndex: z.number().int().positive().optional().describe("1-based index of the new parent layer"),
+    parentLayerName: z.string().optional().describe("Name of the new parent layer")
+  },
+  async (params) => {
+    return await queueAndAwait("setLayerParent", params);
+  }
+);
+
+// Render the current state of a composition and return it as an image (visual feedback loop).
+server.tool(
+  "render-preview",
+  "Render one frame of a composition to PNG and return it as an image, so you can see what the scene actually looks like right now and keep iterating. Uses After Effects' Render Queue under the hood (ExtendScript has no direct screenshot API), so it can take a few seconds. Requires at least one PNG-capable Output Module template in the user's After Effects install (ships by default as 'PNG Sequence').",
+  {
+    compName: z.string().optional().describe("Composition name (defaults to the active composition)"),
+    timeInSeconds: z.number().min(0).optional().describe("Time within the composition to render (defaults to the comp's current time)"),
+    maxWidth: z.number().int().positive().optional().describe("Downscale the preview to at most this width in pixels to save on image tokens (renders a temporary scaled copy; the real composition is left untouched)")
+  },
+  async ({ compName, timeInSeconds, maxWidth }) => {
+    const result = await queueAndAwait(
+      "renderPreviewFrame",
+      { compName, timeInSeconds, maxWidth },
+      { timeoutMs: 45000, pollMs: 300 }
+    );
+    if (result.isError) return result;
+
     try {
-      // Clear any stale result data
-      clearResultsFile();
-      
-      // Write command to file for After Effects to pick up
-      writeCommandFile("bridgeTestEffects", {});
-      
+      const parsed = JSON.parse(result.content[0].text);
+      const imageBuffer = fs.readFileSync(parsed.file);
+      const base64 = imageBuffer.toString("base64");
       return {
         content: [
           {
             type: "text",
-            text: `Bridge test effects command has been queued.\n` +
-                  `Please ensure the "MCP Bridge Auto" panel is open in After Effects.\n` +
-                  `Use the "get-results" tool after a few seconds to check for the test results.`
+            text: `Rendered "${parsed.composition}" at t=${parsed.timeInSeconds}s (${parsed.width}x${parsed.height}px).`
+          },
+          {
+            type: "image",
+            data: base64,
+            mimeType: "image/png"
           }
         ]
       };
@@ -937,7 +856,7 @@ server.tool(
         content: [
           {
             type: "text",
-            text: `Error queuing bridge test command: ${String(error)}`
+            text: `Preview was rendered but could not be loaded into the response: ${String(error)}`
           }
         ],
         isError: true
@@ -945,6 +864,24 @@ server.tool(
     }
   }
 );
+
+// Sample a layer (e.g. an imported logo) for a dominant color palette to reuse elsewhere in the design.
+server.tool(
+  "analyze-layer-colors",
+  "Sample a layer already placed in a composition (e.g. an imported logo) to extract its dominant colors and an average color. Reuse the returned rgb01 arrays directly as fillColor/backgroundColor/color when creating other layers, to keep the rest of the design consistent with the logo.",
+  {
+    compName: z.string().optional().describe("Composition name (defaults to the active composition)"),
+    layerIndex: z.number().int().positive().optional().describe("1-based index of the layer to sample"),
+    layerName: z.string().optional().describe("Name of the layer to sample"),
+    timeInSeconds: z.number().min(0).optional().describe("Time at which to sample (defaults to the comp's current time)"),
+    gridSize: z.number().int().min(2).max(12).optional().describe("Sampling grid resolution (gridSize x gridSize points across the layer's visible bounds). Default 5.")
+  },
+  async (params) => {
+    return await queueAndAwait("analyzeLayerColors", params, { timeoutMs: 20000 });
+  }
+);
+
+// --- END BATCH & CONTEXT TOOLS ---
 
 // Start the MCP server
 async function main() {

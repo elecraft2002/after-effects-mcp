@@ -29,9 +29,9 @@ function createComposition(args) {
         return JSON.stringify({
             status: "success", message: "Composition created successfully",
             composition: { name: newComp.name, id: newComp.id, width: newComp.width, height: newComp.height, pixelAspect: newComp.pixelAspect, duration: newComp.duration, frameRate: newComp.frameRate, bgColor: newComp.bgColor }
-        }, null, 2);
+        });
     } catch (error) {
-        return JSON.stringify({ status: "error", message: error.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: error.toString() });
     }
 }
 
@@ -72,9 +72,9 @@ function createTextLayer(args) {
         return JSON.stringify({
             status: "success", message: "Text layer created successfully",
             layer: { name: textLayer.name, index: textLayer.index, type: "text", inPoint: textLayer.inPoint, outPoint: textLayer.outPoint, position: textLayer.property("Position").value }
-        }, null, 2);
+        });
     } catch (error) {
-        return JSON.stringify({ status: "error", message: error.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: error.toString() });
     }
 }
 
@@ -135,9 +135,9 @@ function createShapeLayer(args) {
         return JSON.stringify({
             status: "success", message: "Shape layer created successfully",
             layer: { name: shapeLayer.name, index: shapeLayer.index, type: "shape", shapeType: shapeType, inPoint: shapeLayer.inPoint, outPoint: shapeLayer.outPoint, position: shapeLayer.property("Position").value }
-        }, null, 2);
+        });
     } catch (error) {
-        return JSON.stringify({ status: "error", message: error.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: error.toString() });
     }
 }
 
@@ -192,9 +192,9 @@ function createCamera(args) {
             status: "success",
             message: "Camera created successfully",
             layer: result
-        }, null, 2);
+        });
     } catch (error) {
-        return JSON.stringify({ status: "error", message: error.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: error.toString() });
     }
 }
 
@@ -235,9 +235,9 @@ function duplicateLayer(args) {
             message: "Layer duplicated successfully",
             original: { name: layer.name, index: layer.index },
             duplicate: { name: newLayer.name, index: newLayer.index }
-        }, null, 2);
+        });
     } catch (error) {
-        return JSON.stringify({ status: "error", message: error.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: error.toString() });
     }
 }
 
@@ -277,9 +277,9 @@ function deleteLayer(args) {
             status: "success",
             message: "Layer deleted successfully",
             deleted: { name: deletedName, index: deletedIndex }
-        }, null, 2);
+        });
     } catch (error) {
-        return JSON.stringify({ status: "error", message: error.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: error.toString() });
     }
 }
 
@@ -404,9 +404,9 @@ function setLayerMask(args) {
                 mode: maskMode,
                 changedProperties: changed
             }
-        }, null, 2);
+        });
     } catch (error) {
-        return JSON.stringify({ status: "error", message: error.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: error.toString() });
     }
 }
 
@@ -444,9 +444,9 @@ function createSolidLayer(args) {
         return JSON.stringify({
             status: "success", message: isAdjustment ? "Adjustment layer created successfully" : "Solid layer created successfully",
             layer: { name: solidLayer.name, index: solidLayer.index, type: isAdjustment ? "adjustment" : "solid", inPoint: solidLayer.inPoint, outPoint: solidLayer.outPoint, position: solidLayer.property("Position").value, isAdjustment: solidLayer.adjustmentLayer }
-        }, null, 2);
+        });
     } catch (error) {
-        return JSON.stringify({ status: "error", message: error.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: error.toString() });
     }
 }
 
@@ -659,10 +659,10 @@ function setLayerProperties(args) {
         return JSON.stringify({
             status: "success", message: "Layer properties updated successfully",
             layer: returnLayerInfo
-        }, null, 2);
+        });
     } catch (error) {
         // Error handling remains similar, but add more specific checks if needed
-        return JSON.stringify({ status: "error", message: error.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: error.toString() });
     }
 }
 
@@ -734,9 +734,9 @@ function batchSetLayerProperties(args) {
             });
         }
 
-        return JSON.stringify({ status: "success", results: results }, null, 2);
+        return JSON.stringify({ status: "success", results: results });
     } catch (error) {
-        return JSON.stringify({ status: "error", message: error.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: error.toString() });
     }
 }
 
@@ -952,12 +952,12 @@ function applyEffect(args) {
                 name: comp.name,
                 index: compIndex
             }
-        }, null, 2);
+        });
     } catch (error) {
         return JSON.stringify({
             status: "error",
             message: error.toString()
-        }, null, 2);
+        });
     }
 }
 
@@ -1192,12 +1192,12 @@ function applyEffectTemplate(args) {
                 name: comp.name,
                 index: compIndex
             }
-        }, null, 2);
+        });
     } catch (error) {
         return JSON.stringify({
             status: "error",
             message: error.toString()
-        }, null, 2);
+        });
     }
 }
 
@@ -1228,9 +1228,9 @@ function bridgeTestEffects(args) {
             status: "success",
             message: "Bridge test effects applied.",
             results: [blurRes, shadowRes]
-        }, null, 2);
+        });
     } catch (e) {
-        return JSON.stringify({ status: "error", message: e.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: e.toString() });
     }
 }
 
@@ -1313,8 +1313,8 @@ if (isAE2025OrLater) {
 var autoRunCheckbox = panel.add("checkbox", undefined, "Auto-run commands");
 autoRunCheckbox.value = true;
 
-// Check interval (ms)
-var checkInterval = 2000;
+// Check interval (ms) - lower value means AE picks up queued MCP commands faster
+var checkInterval = 500;
 var isChecking = false;
 
 // Command file path - use Documents folder for reliable access
@@ -1360,9 +1360,9 @@ function setCompositionProperties(args) {
             status: "success",
             composition: { name: comp.name, duration: comp.duration, frameRate: comp.frameRate, width: comp.width, height: comp.height },
             changedProperties: changed
-        }, null, 2);
+        });
     } catch (error) {
-        return JSON.stringify({ status: "error", message: error.toString() }, null, 2);
+        return JSON.stringify({ status: "error", message: error.toString() });
     }
 }
 
@@ -1430,7 +1430,7 @@ function getProjectInfo() {
         };
     }
 
-    return JSON.stringify(result, null, 2);
+    return JSON.stringify(result);
 }
 
 function listCompositions() {
@@ -1457,7 +1457,7 @@ function listCompositions() {
         }
     }
     
-    return JSON.stringify(result, null, 2);
+    return JSON.stringify(result);
 }
 
 function getLayerInfo() {
@@ -1471,7 +1471,7 @@ function getLayerInfo() {
     if (app.project.activeItem instanceof CompItem) {
         activeComp = app.project.activeItem;
     } else {
-        return JSON.stringify({ error: "No active composition" }, null, 2);
+        return JSON.stringify({ error: "No active composition" });
     }
     
     // Loop through layers in the active composition
@@ -1491,133 +1491,509 @@ function getLayerInfo() {
         result.layers.push(layerInfo);
     }
     
-    return JSON.stringify(result, null, 2);
+    return JSON.stringify(result);
+}
+
+// --- Shared helpers for new commands (batch, reorder, parent, preview, color analysis) ---
+
+// Find a composition by name, falling back to the active composition.
+function findCompByName(compName) {
+    var comp = null;
+    if (compName) {
+        for (var i = 1; i <= app.project.numItems; i++) {
+            var item = app.project.item(i);
+            if (item instanceof CompItem && item.name === compName) { comp = item; break; }
+        }
+    }
+    if (!comp) {
+        if (app.project.activeItem instanceof CompItem) { comp = app.project.activeItem; }
+        else { throw new Error("No composition found with name '" + compName + "' and no active composition"); }
+    }
+    return comp;
+}
+
+// Find a layer within a composition by 1-based index or by name.
+function findLayerInComp(comp, layerIndex, layerName) {
+    var layer = null;
+    if (layerIndex !== undefined && layerIndex !== null) {
+        if (layerIndex > 0 && layerIndex <= comp.numLayers) { layer = comp.layer(layerIndex); }
+        else { throw new Error("Layer index out of bounds: " + layerIndex); }
+    } else if (layerName) {
+        for (var j = 1; j <= comp.numLayers; j++) {
+            if (comp.layer(j).name === layerName) { layer = comp.layer(j); break; }
+        }
+    }
+    if (!layer) { throw new Error("Layer not found: " + (layerName || "index " + layerIndex)); }
+    return layer;
+}
+
+// Classify a layer for context-rich snapshots.
+function getLayerType(layer) {
+    try {
+        if (layer instanceof CameraLayer) return "camera";
+        if (layer instanceof LightLayer) return "light";
+        if (layer instanceof TextLayer) return "text";
+        if (layer instanceof ShapeLayer) return "shape";
+        if (layer.nullLayer) return "null";
+        if (layer instanceof AVLayer) {
+            if (layer.adjustmentLayer) return "adjustment";
+            var src = layer.source;
+            if (src && src instanceof CompItem) return "precomp";
+            if (src && src.mainSource && (src.mainSource instanceof SolidSource)) return "solid";
+            return "footage";
+        }
+    } catch (e) {}
+    return "layer";
+}
+
+// Rich snapshot of a composition's current layer stack, used to give the AI
+// as much situational context as possible without an extra round trip.
+function getCompSnapshot(comp) {
+    var layers = [];
+    for (var i = 1; i <= comp.numLayers; i++) {
+        var l = comp.layer(i);
+        var info = { index: l.index, name: l.name, type: getLayerType(l) };
+        try { info.enabled = l.enabled; } catch (e) {}
+        try { info.locked = l.locked; } catch (e) {}
+        try { info.threeDLayer = l.threeDLayer; } catch (e) {}
+        try { info.parent = l.parent ? l.parent.name : null; } catch (e) { info.parent = null; }
+        try { info.inPoint = l.inPoint; } catch (e) {}
+        try { info.outPoint = l.outPoint; } catch (e) {}
+        try { info.position = l.property("Position") ? l.property("Position").value : undefined; } catch (e) {}
+        try { info.scale = l.property("Scale") ? l.property("Scale").value : undefined; } catch (e) {}
+        try { info.opacity = l.property("Opacity") ? l.property("Opacity").value : undefined; } catch (e) {}
+        try { info.blendMode = l.blendingMode; } catch (e) {}
+        try { info.trackMatteType = l.trackMatteType; } catch (e) {}
+        try { info.hasMask = !!(l.property("Masks") && l.property("Masks").numProperties > 0); } catch (e) { info.hasMask = false; }
+        try { info.numEffects = l.property("Effects") ? l.property("Effects").numProperties : 0; } catch (e) { info.numEffects = 0; }
+        layers.push(info);
+    }
+    return {
+        compName: comp.name,
+        width: comp.width,
+        height: comp.height,
+        duration: comp.duration,
+        frameRate: comp.frameRate,
+        numLayers: comp.numLayers,
+        layers: layers
+    };
+}
+
+// True if a dispatched command's result object represents a failure,
+// regardless of which of the two result shapes used across this file it follows.
+function isErrorResult(obj) {
+    if (!obj || typeof obj !== "object") return true;
+    if (obj.status === "error") return true;
+    if (obj.success === false) return true;
+    return false;
+}
+
+// Central command dispatcher. Always returns a plain object (never a JSON string),
+// so it can be reused both for single commands and for batchExecute's loop.
+function dispatchCommand(command, args) {
+    var raw;
+    switch (command) {
+        case "getProjectInfo":
+            raw = getProjectInfo();
+            break;
+        case "listCompositions":
+            raw = listCompositions();
+            break;
+        case "getLayerInfo":
+            raw = getLayerInfo();
+            break;
+        case "createComposition":
+            raw = createComposition(args);
+            break;
+        case "createTextLayer":
+            raw = createTextLayer(args);
+            break;
+        case "createShapeLayer":
+            raw = createShapeLayer(args);
+            break;
+        case "createSolidLayer":
+            raw = createSolidLayer(args);
+            break;
+        case "setLayerProperties":
+            raw = setLayerProperties(args);
+            break;
+        case "setLayerKeyframe":
+            raw = setLayerKeyframe(args.compIndex, args.layerIndex, args.propertyName, args.timeInSeconds, args.value);
+            break;
+        case "setLayerExpression":
+            raw = setLayerExpression(args.compIndex, args.layerIndex, args.propertyName, args.expressionString);
+            break;
+        case "applyEffect":
+            raw = applyEffect(args);
+            break;
+        case "applyEffectTemplate":
+            raw = applyEffectTemplate(args);
+            break;
+        case "bridgeTestEffects":
+            raw = bridgeTestEffects(args);
+            break;
+        case "createCamera":
+            raw = createCamera(args);
+            break;
+        case "batchSetLayerProperties":
+            raw = batchSetLayerProperties(args);
+            break;
+        case "setCompositionProperties":
+            raw = setCompositionProperties(args);
+            break;
+        case "duplicateLayer":
+            raw = duplicateLayer(args);
+            break;
+        case "deleteLayer":
+            raw = deleteLayer(args);
+            break;
+        case "setLayerMask":
+            raw = setLayerMask(args);
+            break;
+        case "batchExecute":
+            return batchExecute(args);
+        case "reorderLayer":
+            return reorderLayer(args);
+        case "setLayerParent":
+            return setLayerParent(args);
+        case "renderPreviewFrame":
+            return renderPreviewFrame(args);
+        case "analyzeLayerColors":
+            return analyzeLayerColors(args);
+        default:
+            return { status: "error", message: "Unknown command: " + command };
+    }
+    // Legacy functions above return a JSON string; normalize to an object.
+    try {
+        return JSON.parse(raw);
+    } catch (parseError) {
+        return { status: "error", message: "Failed to parse result for '" + command + "': " + parseError.toString(), raw: String(raw) };
+    }
+}
+
+// --- batchExecute: run several operations (any command dispatchCommand supports) in one go ---
+function batchExecute(args) {
+    var operations = args && args.operations;
+    if (!operations || !operations.length) {
+        return { status: "error", message: "No operations provided. Pass args.operations as an array of {command, args}." };
+    }
+    var stopOnError = !!(args && args.stopOnError);
+    var includeSnapshot = !(args && args.includeSnapshot === false);
+    var lastCompName = args ? args.compName : undefined;
+
+    var results = [];
+    var successCount = 0;
+    var errorCount = 0;
+
+    app.beginUndoGroup("MCP Batch Execute (" + operations.length + " ops)");
+    try {
+        for (var i = 0; i < operations.length; i++) {
+            var op = operations[i] || {};
+            var opResult;
+            try {
+                opResult = dispatchCommand(op.command, op.args || {});
+            } catch (e) {
+                opResult = { status: "error", message: e.toString() + (e.line ? " (line " + e.line + ")" : "") };
+            }
+            var failed = isErrorResult(opResult);
+            if (failed) { errorCount++; } else { successCount++; }
+            results.push({ index: i, command: op.command, status: failed ? "error" : "success", result: opResult });
+            if (op.args && op.args.compName) { lastCompName = op.args.compName; }
+            if (failed && stopOnError) { break; }
+        }
+    } finally {
+        app.endUndoGroup();
+    }
+
+    var response = {
+        status: errorCount === 0 ? "success" : (successCount === 0 ? "error" : "partial"),
+        totalOperations: operations.length,
+        executedOperations: results.length,
+        successCount: successCount,
+        errorCount: errorCount,
+        results: results
+    };
+
+    if (includeSnapshot) {
+        try {
+            response.compSnapshot = getCompSnapshot(findCompByName(lastCompName));
+        } catch (e) {
+            // No resolvable composition - omit the snapshot rather than failing the whole batch.
+        }
+    }
+
+    return response;
+}
+
+// --- reorderLayer: change a layer's position in the stacking order ---
+function reorderLayer(args) {
+    try {
+        var comp = findCompByName(args.compName);
+        var layer = findLayerInComp(comp, args.layerIndex, args.layerName);
+        var position = args.position || "end";
+
+        if (position === "beginning") {
+            layer.moveToBeginning();
+        } else if (position === "end") {
+            layer.moveToEnd();
+        } else if (position === "before" || position === "after") {
+            var refLayer = findLayerInComp(comp, args.referenceLayerIndex, args.referenceLayerName);
+            if (position === "before") { layer.moveBefore(refLayer); }
+            else { layer.moveAfter(refLayer); }
+        } else {
+            throw new Error("Invalid position '" + position + "'. Use 'beginning', 'end', 'before', or 'after'.");
+        }
+
+        return {
+            status: "success",
+            message: "Layer reordered successfully",
+            layer: { name: layer.name, index: layer.index }
+        };
+    } catch (error) {
+        return { status: "error", message: error.toString() };
+    }
+}
+
+// --- setLayerParent: set or clear a layer's parent (rigging) ---
+function setLayerParent(args) {
+    try {
+        var comp = findCompByName(args.compName);
+        var layer = findLayerInComp(comp, args.layerIndex, args.layerName);
+
+        if (args.parentLayerIndex === undefined && args.parentLayerName === undefined) {
+            layer.parent = null;
+            return { status: "success", message: "Parent cleared", layer: { name: layer.name, index: layer.index, parent: null } };
+        }
+
+        var parentLayer = findLayerInComp(comp, args.parentLayerIndex, args.parentLayerName);
+        if (parentLayer.index === layer.index) {
+            throw new Error("A layer cannot be its own parent.");
+        }
+        layer.parent = parentLayer;
+
+        return {
+            status: "success",
+            message: "Parent set successfully",
+            layer: { name: layer.name, index: layer.index, parent: parentLayer.name }
+        };
+    } catch (error) {
+        return { status: "error", message: error.toString() };
+    }
+}
+
+// --- renderPreviewFrame: rasterize one frame of a composition to PNG via the Render Queue ---
+// (There is no direct "screenshot" API in ExtendScript; the Render Queue is the
+// documented, scriptable way to get a still frame out of After Effects.)
+function renderPreviewFrame(args) {
+    var tempComp = null;
+    var rqItem = null;
+    try {
+        var comp = findCompByName(args.compName);
+        var time = (args.timeInSeconds !== undefined && args.timeInSeconds !== null) ? parseFloat(args.timeInSeconds) : comp.time;
+        if (isNaN(time) || time < 0) { time = 0; }
+        var maxTime = Math.max(0, comp.duration - (1 / comp.frameRate));
+        if (time > maxTime) { time = maxTime; }
+
+        var renderComp = comp;
+        var maxWidth = args.maxWidth ? parseInt(args.maxWidth, 10) : null;
+        if (maxWidth && maxWidth > 0 && maxWidth < comp.width) {
+            var scale = maxWidth / comp.width;
+            var newW = Math.max(2, Math.round(comp.width * scale));
+            var newH = Math.max(2, Math.round(comp.height * scale));
+            tempComp = app.project.items.addComp("__mcp_preview_temp__", newW, newH, comp.pixelAspect, comp.duration, comp.frameRate);
+            var nestedLayer = tempComp.layers.add(comp);
+            nestedLayer.property("Transform").property("Scale").setValue([scale * 100, scale * 100]);
+            renderComp = tempComp;
+        }
+
+        var bridgeDir = Folder.myDocuments.fsName + "/ae-mcp-bridge";
+        var previewFolder = new Folder(bridgeDir + "/previews");
+        if (!previewFolder.exists) { previewFolder.create(); }
+
+        var baseName = "preview_" + new Date().getTime();
+
+        var rq = app.project.renderQueue;
+        rqItem = rq.items.add(renderComp);
+        rqItem.timeSpanStart = time;
+        rqItem.timeSpanDuration = 1 / renderComp.frameRate;
+        rqItem.render = true;
+
+        var om = rqItem.outputModule(1);
+        var templates = om.templates;
+        var chosen = null;
+        var t;
+        for (t = 0; t < templates.length; t++) {
+            if (/png/i.test(templates[t])) { chosen = templates[t]; break; }
+        }
+        if (!chosen) {
+            for (t = 0; t < templates.length; t++) {
+                if (/sequence/i.test(templates[t])) { chosen = templates[t]; break; }
+            }
+        }
+        if (!chosen) {
+            throw new Error("No PNG-capable Output Module template found. In After Effects, open the Render Queue, expand Output Module, set Format to 'PNG Sequence' and save it as a template, then try again. Available templates: " + templates.join(", "));
+        }
+        om.applyTemplate(chosen);
+        om.file = new File(previewFolder.fsName + "/" + baseName + "_[#####].png");
+
+        rq.showWindow(false);
+        rq.render(); // Blocking - returns once this single frame has been written.
+
+        var matches = previewFolder.getFiles(baseName + "*");
+        if (!matches || !matches.length) {
+            throw new Error("Render completed but no output PNG matching '" + baseName + "*' was found in " + previewFolder.fsName);
+        }
+        matches.sort(function (a, b) { return b.modified - a.modified; });
+        var resultFile = matches[0];
+
+        return {
+            status: "success",
+            message: "Preview frame rendered successfully",
+            file: resultFile.fsName,
+            composition: comp.name,
+            timeInSeconds: time,
+            width: renderComp.width,
+            height: renderComp.height
+        };
+    } catch (error) {
+        return { status: "error", message: error.toString() + (error.line ? " (line " + error.line + ")" : "") };
+    } finally {
+        if (rqItem) { try { rqItem.remove(); } catch (e) {} }
+        if (tempComp) { try { tempComp.remove(); } catch (e) {} }
+    }
+}
+
+// --- analyzeLayerColors: sample a layer (e.g. an imported logo) for a dominant color palette ---
+// AVLayer has no scripting-API sampleImage(); it is expression-only. We bridge to it by
+// pointing a scratch Color Control effect's expression at sampleImage() and reading the
+// evaluated value back via Property.valueAtTime(), which AE's own docs note will wait for
+// expressions like sampleImage to finish evaluating.
+function analyzeLayerColors(args) {
+    var tempLayer = null;
+    try {
+        var comp = findCompByName(args.compName);
+        var layer = findLayerInComp(comp, args.layerIndex, args.layerName);
+        var time = (args.timeInSeconds !== undefined && args.timeInSeconds !== null) ? parseFloat(args.timeInSeconds) : comp.time;
+        var gridSize = args.gridSize ? Math.max(2, Math.min(12, parseInt(args.gridSize, 10))) : 5;
+
+        if (!layer.sourceRectAtTime) {
+            throw new Error("Layer '" + layer.name + "' does not support sourceRectAtTime (not a visual/footage-based layer).");
+        }
+        var rect = layer.sourceRectAtTime(time, false);
+
+        tempLayer = comp.layers.addSolid([0, 0, 0], "__mcp_color_probe__", 4, 4, comp.pixelAspect);
+        tempLayer.enabled = false; // Keep the probe out of the visible/rendered comp.
+        var colorControl = tempLayer.property("Effects").addProperty("ADBE Color Control");
+        var colorProp = colorControl.property("Color");
+
+        var samples = [];
+        var gx, gy;
+        for (gy = 0; gy < gridSize; gy++) {
+            for (gx = 0; gx < gridSize; gx++) {
+                var px = rect.left + (rect.width * (gx + 0.5)) / gridSize;
+                var py = rect.top + (rect.height * (gy + 0.5)) / gridSize;
+                var expr = "thisComp.layer(" + layer.index + ").sampleImage([" + px + "," + py + "], [1,1], true, " + time + ")";
+                colorProp.expression = expr;
+                var rgba = colorProp.valueAtTime(time, false);
+                if (rgba && rgba.length >= 4 && rgba[3] > 0.1) {
+                    samples.push([rgba[0], rgba[1], rgba[2], rgba[3]]);
+                }
+            }
+        }
+        colorProp.expression = "";
+
+        if (!samples.length) {
+            return {
+                status: "success",
+                message: "No opaque pixels found to sample (layer may be fully transparent at this time/area).",
+                layer: { name: layer.name, index: layer.index },
+                sampledPoints: gridSize * gridSize,
+                opaqueSamples: 0,
+                palette: [],
+                averageColor: null
+            };
+        }
+
+        var sum = [0, 0, 0];
+        var s;
+        for (s = 0; s < samples.length; s++) {
+            sum[0] += samples[s][0]; sum[1] += samples[s][1]; sum[2] += samples[s][2];
+        }
+        var avg = [sum[0] / samples.length, sum[1] / samples.length, sum[2] / samples.length];
+
+        // Bucket similar colors together (round to the nearest 1/16th per channel) to find dominant colors.
+        var buckets = {};
+        var bucketStep = 1 / 16;
+        var b;
+        for (b = 0; b < samples.length; b++) {
+            var rr = Math.round(samples[b][0] / bucketStep) * bucketStep;
+            var gg = Math.round(samples[b][1] / bucketStep) * bucketStep;
+            var bb = Math.round(samples[b][2] / bucketStep) * bucketStep;
+            var key = rr.toFixed(3) + "," + gg.toFixed(3) + "," + bb.toFixed(3);
+            if (!buckets[key]) { buckets[key] = { rgb: [rr, gg, bb], count: 0 }; }
+            buckets[key].count++;
+        }
+        var bucketList = [];
+        for (var k in buckets) { if (buckets.hasOwnProperty(k)) { bucketList.push(buckets[k]); } }
+        bucketList.sort(function (a, b2) { return b2.count - a.count; });
+
+        function toHex(v) {
+            var n = Math.round(Math.max(0, Math.min(1, v)) * 255);
+            var hx = n.toString(16);
+            return hx.length === 1 ? "0" + hx : hx;
+        }
+        function toPaletteEntry(rgb01, count) {
+            return {
+                rgb01: [rgb01[0], rgb01[1], rgb01[2]],
+                rgb255: [Math.round(rgb01[0] * 255), Math.round(rgb01[1] * 255), Math.round(rgb01[2] * 255)],
+                hex: "#" + toHex(rgb01[0]) + toHex(rgb01[1]) + toHex(rgb01[2]),
+                frequency: count / samples.length,
+                sampleCount: count
+            };
+        }
+
+        var palette = [];
+        var maxPaletteEntries = Math.min(5, bucketList.length);
+        for (var p = 0; p < maxPaletteEntries; p++) {
+            palette.push(toPaletteEntry(bucketList[p].rgb, bucketList[p].count));
+        }
+
+        return {
+            status: "success",
+            message: "Color analysis complete",
+            layer: { name: layer.name, index: layer.index },
+            sourceRect: rect,
+            sampledPoints: gridSize * gridSize,
+            opaqueSamples: samples.length,
+            averageColor: toPaletteEntry(avg, samples.length),
+            palette: palette
+        };
+    } catch (error) {
+        return { status: "error", message: error.toString() + (error.line ? " (line " + error.line + ")" : "") };
+    } finally {
+        if (tempLayer) { try { tempLayer.remove(); } catch (e) {} }
+    }
 }
 
 // Execute command
 function executeCommand(command, args) {
-    var result = "";
-
     logToPanel("Executing command: " + command);
     statusText.text = "Running: " + command;
     panel.update();
 
     try {
-        logToPanel("Attempting to execute: " + command); // Log before switch
-        // Use a switch statement for clarity
-        switch (command) {
-            case "getProjectInfo":
-                result = getProjectInfo();
-                break;
-            case "listCompositions":
-                result = listCompositions();
-                break;
-            case "getLayerInfo":
-                result = getLayerInfo();
-                break;
-            case "createComposition":
-                logToPanel("Calling createComposition function...");
-                result = createComposition(args);
-                logToPanel("Returned from createComposition.");
-                break;
-            case "createTextLayer":
-                logToPanel("Calling createTextLayer function...");
-                result = createTextLayer(args);
-                logToPanel("Returned from createTextLayer.");
-                break;
-            case "createShapeLayer":
-                logToPanel("Calling createShapeLayer function...");
-                result = createShapeLayer(args);
-                logToPanel("Returned from createShapeLayer. Result type: " + typeof result);
-                break;
-            case "createSolidLayer":
-                logToPanel("Calling createSolidLayer function...");
-                result = createSolidLayer(args);
-                logToPanel("Returned from createSolidLayer.");
-                break;
-            case "setLayerProperties":
-                logToPanel("Calling setLayerProperties function...");
-                result = setLayerProperties(args);
-                logToPanel("Returned from setLayerProperties.");
-                break;
-            case "setLayerKeyframe":
-                logToPanel("Calling setLayerKeyframe function...");
-                result = setLayerKeyframe(args.compIndex, args.layerIndex, args.propertyName, args.timeInSeconds, args.value);
-                logToPanel("Returned from setLayerKeyframe.");
-                break;
-            case "setLayerExpression":
-                logToPanel("Calling setLayerExpression function...");
-                result = setLayerExpression(args.compIndex, args.layerIndex, args.propertyName, args.expressionString);
-                logToPanel("Returned from setLayerExpression.");
-                break;
-            case "applyEffect":
-                logToPanel("Calling applyEffect function...");
-                result = applyEffect(args);
-                logToPanel("Returned from applyEffect.");
-                break;
-            case "applyEffectTemplate":
-                logToPanel("Calling applyEffectTemplate function...");
-                result = applyEffectTemplate(args);
-                logToPanel("Returned from applyEffectTemplate.");
-                break;
-            case "bridgeTestEffects":
-                logToPanel("Calling bridgeTestEffects function...");
-                result = bridgeTestEffects(args);
-                logToPanel("Returned from bridgeTestEffects.");
-                break;
-            case "createCamera":
-                logToPanel("Calling createCamera function...");
-                result = createCamera(args);
-                logToPanel("Returned from createCamera.");
-                break;
-            case "batchSetLayerProperties":
-                logToPanel("Calling batchSetLayerProperties function...");
-                result = batchSetLayerProperties(args);
-                logToPanel("Returned from batchSetLayerProperties.");
-                break;
-            case "setCompositionProperties":
-                logToPanel("Calling setCompositionProperties function...");
-                result = setCompositionProperties(args);
-                logToPanel("Returned from setCompositionProperties.");
-                break;
-            case "duplicateLayer":
-                logToPanel("Calling duplicateLayer function...");
-                result = duplicateLayer(args);
-                logToPanel("Returned from duplicateLayer.");
-                break;
-            case "deleteLayer":
-                logToPanel("Calling deleteLayer function...");
-                result = deleteLayer(args);
-                logToPanel("Returned from deleteLayer.");
-                break;
-            case "setLayerMask":
-                logToPanel("Calling setLayerMask function...");
-                result = setLayerMask(args);
-                logToPanel("Returned from setLayerMask.");
-                break;
-            default:
-                result = JSON.stringify({ error: "Unknown command: " + command });
+        logToPanel("Dispatching command: " + command);
+        var resultObj = dispatchCommand(command, args);
+        if (!resultObj || typeof resultObj !== "object") {
+            resultObj = { status: "error", message: "Command produced no result" };
         }
-        logToPanel("Execution finished for: " + command); // Log after switch
-        
-        // Save the result (ensure result is always a string)
-        logToPanel("Preparing to write result file...");
-        var resultString = (typeof result === 'string') ? result : JSON.stringify(result);
-        
-        // Try to parse the result as JSON to add a timestamp
-        try {
-            var resultObj = JSON.parse(resultString);
-            // Add a timestamp to help identify if we're getting fresh results
-            resultObj._responseTimestamp = new Date().toISOString();
-            resultObj._commandExecuted = command;
-            resultString = JSON.stringify(resultObj, null, 2);
-            logToPanel("Added timestamp to result JSON for tracking freshness.");
-        } catch (parseError) {
-            // If it's not valid JSON, append the timestamp as a comment
-            logToPanel("Could not parse result as JSON to add timestamp: " + parseError.toString());
-            // We'll still continue with the original string
-        }
-        
+        logToPanel("Execution finished for: " + command);
+
+        // Add tracking fields directly on the result object (already a plain object).
+        resultObj._responseTimestamp = new Date().toISOString();
+        resultObj._commandExecuted = command;
+        var resultString = JSON.stringify(resultObj);
+
         var resultFile = new File(getResultFilePath());
         resultFile.encoding = "UTF-8"; // Ensure UTF-8 encoding
         logToPanel("Opening result file for writing...");
@@ -1697,7 +2073,7 @@ function updateCommandStatus(status) {
                 commandData.status = status;
                 
                 commandFile.open("w");
-                commandFile.write(JSON.stringify(commandData, null, 2));
+                commandFile.write(JSON.stringify(commandData));
                 commandFile.close();
             }
         }
