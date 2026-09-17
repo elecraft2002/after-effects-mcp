@@ -25,6 +25,9 @@
   - [Creating Compositions](#creating-compositions)
   - [Working with Layers](#working-with-layers)
   - [Animation](#animation)
+  - [Batch Operations](#batch-operations)
+  - [Preview & Visual Feedback](#preview--visual-feedback)
+  - [Logo / Brand Color Extraction](#logo--brand-color-extraction)
 - [Available MCP Tools](#available-mcp-tools)
 - [For Developers](#for-developers)
   - [Project Structure](#project-structure)
@@ -52,11 +55,19 @@
 - **Duplicate layers** with optional rename
 - **Delete layers** from composition
 - **Create/modify masks** with feather, expansion, and opacity
+- **Reorder layers** (bring to front/back, move before/after another layer)
+- **Parent/unparent layers** for rigging
 
 ### 🌀 Animation Capabilities
 - **Set keyframes** for layer properties (Position, Scale, Rotation, Opacity, etc.)
 - **Apply expressions** to layer properties for dynamic animations
 - **Batch set properties** across multiple layers at once
+
+### ⚡ Batch Operations & Feedback
+- **Run many operations in one round trip** — create, modify, and reorder several layers (e.g. "add 5 layers") in a single tool call instead of one at a time
+- **Render a preview frame back to the AI** as an image, so it can see the current state of the composition and keep iterating
+- **Extract a color palette from a layer** (e.g. an imported logo) to reuse across the rest of the design
+- Tool calls return real results directly (no more "queue it, then call get-results" two-step)
 
 ## ⚙️ Setup Instructions
 
@@ -197,11 +208,44 @@ You can animate layers with:
 - Create dynamic, procedural animations
 - Connect property values to each other
 
+### 📦 Batch Operations
+
+Instead of adding or changing layers one at a time, send a list of operations in a single `batch-execute` call. Each operation is any command also accepted by `run-script` (e.g. `createTextLayer`, `createShapeLayer`, `setLayerProperties`, `reorderLayer`). All operations run inside one Undo step, and by default the batch keeps going even if one operation fails so you still get the results of the rest.
+
+Example — "add five layers" in one round trip:
+```javascript
+batch_execute({
+  operations: [
+    { command: "createTextLayer", args: { text: "Hello", position: [960, 200] } },
+    { command: "createShapeLayer", args: { shapeType: "ellipse", position: [960, 540] } },
+    { command: "createSolidLayer", args: { color: [0.1, 0.1, 0.1], name: "BG" } },
+    { command: "createShapeLayer", args: { shapeType: "star", position: [400, 700] } },
+    { command: "createTextLayer", args: { text: "Subtitle", position: [960, 800], fontSize: 36 } }
+  ]
+});
+```
+The result includes a per-operation status plus a fresh snapshot of every layer in the composition (`compSnapshot`), so there's no need for a follow-up `getLayerInfo` call just to see what changed.
+
+### 🖼️ Preview & Visual Feedback
+
+`render-preview` renders one frame of a composition and returns it as an image, so the AI can actually look at the current state of the scene and keep iterating instead of working blind. Under the hood this drives After Effects' Render Queue (ExtendScript has no direct screenshot API), so it takes a few seconds and requires at least one PNG-capable Output Module template (After Effects ships with "PNG Sequence" by default). Pass `maxWidth` to render a downscaled copy and keep the image small/cheap to send back.
+
+### 🎨 Logo / Brand Color Extraction
+
+`analyze-layer-colors` samples a layer already placed in a composition — for example an imported logo — and returns its dominant colors plus an average color. Each palette entry includes `rgb01` (ready to pass straight back into `fillColor`/`backgroundColor`/`color` on other tools), `rgb255`, and `hex`, so a typical flow looks like:
+
+1. Import the logo and add it to the composition.
+2. Call `analyze-layer-colors` on that layer.
+3. Feed `palette[0].rgb01` (or the other entries) into `createSolidLayer`, `createShapeLayer`, or `createTextLayer` to keep the rest of the design consistent with the logo.
+
 ## 🛠 Available MCP Tools
+
+Tool calls queue a command for the "MCP Bridge Auto" panel and wait for the panel to pick it up and finish, returning the actual result directly — there's no need to separately call `get-results` afterwards (that tool, and `run-script`, are still available for manual/advanced use).
 
 | Command                     | Description                            |
 |-----------------------------|----------------------------------------|
 | `create-composition`        | Create a new composition               |
+| `batch-execute`              | Run several operations (any command below) in one round trip, in a single Undo step |
 | `run-script`                | Run a JS script inside AE              |
 | `get-results`               | Get script results                     |
 | `get-help`                  | Help for available commands            |
@@ -215,6 +259,10 @@ You can animate layers with:
 | `duplicateLayer`            | Duplicate a layer                     |
 | `deleteLayer`               | Delete a layer                        |
 | `setLayerMask`              | Create/modify layer masks             |
+| `reorder-layer`              | Move a layer to the front/back or before/after another layer |
+| `set-layer-parent`           | Set or clear a layer's parent (rigging) |
+| `render-preview`             | Render a frame of a composition and return it as an image |
+| `analyze-layer-colors`       | Extract a dominant color palette from a layer (e.g. a logo) |
 
 ## 👨‍💻 For Developers
 
@@ -233,6 +281,8 @@ yarn build
 ```
 
 **Note:** This project uses esbuild for fast builds, replacing the previous TypeScript compiler approach that could run out of memory on larger codebases.
+
+**Note:** After changing `src/scripts/mcp-bridge-auto.jsx`, rebuild and re-run `npm run install-bridge`, then close and reopen the panel in After Effects (Window > mcp-bridge-auto.jsx) — After Effects keeps the script it loaded in memory, so it won't pick up changes to the file on disk until the panel is reopened.
 
 ### 🤝 Contributing
 
